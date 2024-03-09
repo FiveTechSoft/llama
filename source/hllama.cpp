@@ -30,18 +30,13 @@
 #include "hbvm.h"
 #include "item.api"
 
-typedef struct
-{
-   llama_model * model;
-   llama_context * ctx;
-   int n_len;
-   int n_cur;
-
-} HB_LLAMAS, * PHB_LLAMAS;
-
+static llama_model * model;
+static llama_context * ctx;
 static gpt_params params;
 static llama_batch batch;
 static short int bBatchActive = 0;
+static int n_len;
+static int n_cur;
 
 void llm_writelog( const char * sFile, const char * sTraceMsg, ... )
 {
@@ -69,62 +64,98 @@ void llm_writelog( const char * sFile, const char * sTraceMsg, ... )
 
 }
 
+HB_FUNC( LLM_SET_PARAMS )
+{
+   char * cParams = (char*) hb_parc( 1 ), * ptr, * ptr2, *ptr3;
+   short int bEnd = 0;
+   char s1[24], s2[256];
+   llama_sampling_params & sparams = params.sparams;
+
+   ptr = ptr2 = cParams;
+   while( *ptr && !bEnd ) {
+      while( *(++ptr2) != '\0' && *ptr2 != '=' );
+      if( !(*ptr2) )
+         return;
+      memcpy( s1, ptr, ptr2-ptr );
+      s1[ptr2-ptr] = '\0';
+      ptr2 ++;
+      ptr3 = ptr2;
+      while( *(++ptr3) != '\0' && *ptr3 != '\1' );
+      if( !(*ptr3) )
+         bEnd = 1;
+      memcpy( s2, ptr2, ptr3-ptr2 );
+      s2[ptr3-ptr2] = '\0';
+      if( !strcmp( s1, "p" ) ) {
+         params.prompt = s2;
+
+      } else if( !strcmp( s1, "c" ) ) {
+
+         params.n_ctx = std::stoi( ptr2 );
+         //llm_writelog( NULL, "p %d\n", params.n_ctx );
+
+      } else if( !strcmp( s1, "n" ) ) {
+         params.n_predict = std::stoi( s2 );
+
+      } else if( !strcmp( s1, "temp" ) ) {
+         sparams.temp = std::stof( s2 );
+         sparams.temp = std::max(sparams.temp, 0.0f);
+
+      } else if( !strcmp( s1, "repeat-penalty" ) ) {
+         sparams.penalty_repeat = std::stof( s2 );
+
+      } else if( !strcmp( s1, "top-k" ) ) {
+         sparams.top_k = std::stoi( s2 );
+
+      } else if( !strcmp( s1, "top-p" ) ) {
+         sparams.top_p = std::stof( s2 );
+
+      } else if( !strcmp( s1, "r" ) ) {
+         params.antiprompt.emplace_back( s2 );
+
+      }
+      ptr = ptr2 = ptr3 + 1;
+   }
+
+}
+
 HB_FUNC( LLM_OPEN_MODEL )
 {
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_xgrab( sizeof( HB_LLAMAS ) );
-
-   memset( pLLM, 0, sizeof(HB_LLAMAS) );
 
    params.model = hb_parc( 1 );
-   params.prompt = ""; //hb_parc( 2 );
+   params.prompt = "";
 
    // init LLM
-
    llama_backend_init();
    llama_numa_init(params.numa);
 
    // initialize the model
-
-   //llama_model_params model_params = llama_model_default_params();
-
-   // model_params.n_gpu_layers = 99; // offload all layers to the GPU
-
-   //pLLM->model = llama_load_model_from_file(params.model.c_str(), model_params);
-   pLLM->model = llama_load_model_from_file( params.model.c_str(),
+   model = llama_load_model_from_file( params.model.c_str(),
       llama_model_params_from_gpt_params( params) );
 
-
-   if( pLLM->model == NULL ) {
-       fprintf(stderr , "%s: error: unable to load model\n" , __func__);
-       hb_xfree( pLLM );
-       return;
+   if( model == NULL ) {
+      hb_retni( 1 );
+      return;
    }
 
-   //pLLM->n_threads = params.n_threads;
-   //pLLM->n_threads_batch = params.n_threads_batch;
-   pLLM->n_len = 256;
-
-   hb_retptr( ( void * ) pLLM );
+   n_len = 256;
+   hb_retni( 0 );
 }
 
 HB_FUNC( LLM_CREATE_CONTEXT )
 {
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_parptr( 1 );
 
    // initialize the context
    llama_context_params ctx_params = llama_context_params_from_gpt_params( params ); // llama_context_default_params();
 
    ctx_params.seed  = 1234;
-   ctx_params.n_ctx = 2048;
+   //ctx_params.n_ctx = 2048;
 
    ctx_params.n_threads = params.n_threads;
    ctx_params.n_threads_batch = params.n_threads_batch == -1 ? params.n_threads : params.n_threads_batch;
-   //ctx_params.n_threads = pLLM->n_threads;
-   //ctx_params.n_threads_batch = pLLM->n_threads_batch == -1 ? pLLM->n_threads : pLLM->n_threads_batch;
 
-   pLLM->ctx = llama_new_context_with_model( pLLM->model, ctx_params );
+   ctx = llama_new_context_with_model( model, ctx_params );
 
-   if( pLLM->ctx == NULL ) {
+   if( ctx == NULL ) {
        hb_retni( -1 );
    } else
       hb_retni( 0 );
@@ -133,17 +164,14 @@ HB_FUNC( LLM_CREATE_CONTEXT )
 
 HB_FUNC( LLM_ASK )
 {
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_parptr( 1 );
-
-   llama_context * ctx = pLLM->ctx;
 
    // tokenize the prompt
 
    std::vector<llama_token> tokens_list;
-   tokens_list = ::llama_tokenize( ctx, hb_parc( 2 ), true );
+   tokens_list = ::llama_tokenize( ctx, hb_parc( 1 ), true );
 
    const int n_ctx    = llama_n_ctx(ctx);
-   const int n_kv_req = (int) ( tokens_list.size() + (pLLM->n_len - tokens_list.size()) );
+   const int n_kv_req = (int) ( tokens_list.size() + (n_len - tokens_list.size()) );
 
    // make sure the KV cache is big enough to hold all the prompt and generated tokens
    if (n_kv_req > n_ctx) {
@@ -182,7 +210,7 @@ HB_FUNC( LLM_ASK )
        return;
    }
 
-   pLLM->n_cur = batch.n_tokens;
+   n_cur = batch.n_tokens;
 
    hb_retni( 0 );
 }
@@ -190,12 +218,7 @@ HB_FUNC( LLM_ASK )
 HB_FUNC( LLM_GETNEXTTOKEN )
 {
 
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_parptr( 1 );
-
-   llama_model * model = pLLM->model;
-   llama_context * ctx = pLLM->ctx;
-
-   if( pLLM->n_cur <= pLLM->n_len ) {
+   if( n_cur <= n_len ) {
        // sample the next token
        auto   n_vocab = llama_n_vocab(model);
        auto * logits  = llama_get_logits_ith(ctx, batch.n_tokens - 1);
@@ -211,7 +234,7 @@ HB_FUNC( LLM_GETNEXTTOKEN )
        const llama_token new_token_id = llama_sample_token_greedy(ctx, &candidates_p);
 
        // is it an end of stream?
-       if (new_token_id == llama_token_eos(model) || pLLM->n_cur == pLLM->n_len) {
+       if (new_token_id == llama_token_eos(model) || n_cur == n_len) {
            hb_ret();
        } else {
           hb_retc( llama_token_to_piece(ctx, new_token_id).c_str() );
@@ -220,13 +243,13 @@ HB_FUNC( LLM_GETNEXTTOKEN )
           llama_batch_clear(batch);
 
           // push this new token for next evaluation
-          llama_batch_add(batch, new_token_id, pLLM->n_cur, { 0 }, true);
+          llama_batch_add(batch, new_token_id, n_cur, { 0 }, true);
 
-          pLLM->n_cur += 1;
+          n_cur += 1;
 
           // evaluate the current batch with the transformer model
           if (llama_decode(ctx, batch)) {
-             pLLM->n_cur = pLLM->n_len;
+             n_cur = n_len;
           }
        }
    }
@@ -235,29 +258,26 @@ HB_FUNC( LLM_GETNEXTTOKEN )
 
 HB_FUNC( LLM_CLOSE_CONTEXT )
 {
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_parptr( 1 );
 
    if( bBatchActive )
       llama_batch_free( batch );
    bBatchActive = 0;
 
-   if( pLLM->ctx )
-      llama_free( pLLM->ctx );
-   pLLM->ctx = NULL;
+   if( ctx )
+      llama_free( ctx );
+   ctx = NULL;
 
    hb_retni( 0 );
 }
 
 HB_FUNC( LLM_CLOSE_MODEL )
 {
-   PHB_LLAMAS pLLM = (PHB_LLAMAS) hb_parptr( 1 );
 
-   if( pLLM->model )
-      llama_free_model( pLLM->model );
-   pLLM->model = NULL;
+   if( model )
+      llama_free_model( model );
+   model = NULL;
 
    llama_backend_free();
-   hb_xfree( pLLM );
 
 }
 

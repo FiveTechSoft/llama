@@ -1,45 +1,41 @@
 
 #include "inkey.ch"
 
+REQUEST HB_CODEPAGE_RU1251, HB_CODEPAGE_RU866
+REQUEST HB_CODEPAGE_UTF8
+
 STATIC aModels := {}
 STATIC aHis := {}, nHisCurr := 0
 
 Function Main()
 
-   LOCAL pLLM
-   LOCAL i, nKey
    LOCAL cQue, cAns, cAnswer
-   LOCAL n2
+   LOCAL i, nKey, n2
+
+   hb_cdpSelect( "RU866" )
 
    IniRead( "models.ini" )
    IF Empty( aModels )
       ? "No models in models.ini"
+      RETURN Nil
    ENDIF
-   FOR i := 1 TO Len( aModels )
-      ? Str(i,1) + " " + hb_fnameName( aModels[i] )
-   NEXT
-   ? "Select model: "
 
-   nKey := Inkey(0)
-   ? Chr( nKey )
-
-   IF ( i := nKey - 48 ) <= 0 .OR. i > Len( aModels )
-      ? "Wrong choic"
+   IF ( i := SelectModel() ) == 0
+      RETURN Nil
    ENDIF
 
    ? aModels[i] + "   Loading..."
 
+   llm_Set_Params( "c" + "=" + "1024" + Chr(1) )
    n2 := llm_rediron( 2, "stderr.log" )
-
-   IF Empty( pLLM := llm_Open_Model( aModels[i] ) )
+   IF llm_Open_Model( aModels[i] ) != 0
       ? " === Can't open " + aModels[i] + " ==="
       RETURN Nil
    ENDIF
 
-   ?
    DO WHILE .T.
 
-      ? "Your question:"
+      ? "> "
       cQue := GetLine()
       IF Empty( cQue )
          EXIT
@@ -55,30 +51,51 @@ Function Main()
       ENDIF
 
       ?
-      IF llm_Create_Context( pLLM ) < 0
+      IF llm_Create_Context() < 0
          ? "Can't create context"
          EXIT
       ENDIF
-      llm_Ask( pLLM, cQue )
+      cQue := hb_StrToUtf8( cQue, "RU866" )
+      llm_Ask( cQue )
       cAnswer := ""
-      DO WHILE ( cAns := llm_GetNextToken( pLLM ) ) != Nil
+      DO WHILE ( cAns := llm_GetNextToken() ) != Nil
          //writelog( cAns )
+         cAns := hb_Utf8ToStr( cAns, "RU866" )
          cAnswer += cAns
          ?? cAns
          IF Inkey() == 27
             EXIT
          ENDIF
       ENDDO
-      llm_Close_Context( pLLM )
+      llm_Close_Context()
    ENDDO
 
-   llm_Close_Model( pLLM )
-
+   llm_Close_Model()
    llm_rediroff( 2, n2 )
 
    ? "Bye"
 
    RETURN Nil
+
+
+STATIC FUNCTION SelectModel()
+
+   LOCAL i, nKey
+
+   FOR i := 1 TO Len( aModels )
+      ? Str(i,1) + " " + hb_fnameName( aModels[i] )
+   NEXT
+   ? "Select model: "
+
+   nKey := Inkey(0)
+   ? Chr( nKey )
+
+   IF ( i := nKey - 48 ) <= 0 .OR. i > Len( aModels )
+      ? "Wrong choic"
+      RETURN 0
+   ENDIF
+
+   RETURN i
 
 STATIC FUNCTION IniRead( cFileName )
 
