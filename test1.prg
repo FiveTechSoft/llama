@@ -24,12 +24,14 @@ Function Main()
       RETURN Nil
    ENDIF
 
-   ? aModels[i] + "   Loading..."
+   ? hb_fnameName( aModels[i,1] ) + "   Loading..."
 
-   llm_Set_Params( "c" + "=" + "1024" + Chr(1) )
+   IF !Empty( aModels[i,2] )
+      llm_Set_Params( aModels[i,2] )
+   ENDIF
    n2 := llm_rediron( 2, "stderr.log" )
-   IF llm_Open_Model( aModels[i] ) != 0
-      ? " === Can't open " + aModels[i] + " ==="
+   IF llm_Open_Model( aModels[i,1] ) != 0
+      ? " === Can't open " + aModels[i,1] + " ==="
       RETURN Nil
    ENDIF
 
@@ -83,7 +85,7 @@ STATIC FUNCTION SelectModel()
    LOCAL i, nKey
 
    FOR i := 1 TO Len( aModels )
-      ? Str(i,1) + " " + hb_fnameName( aModels[i] )
+      ? Str(i,1) + " " + hb_fnameName( aModels[i,1] )
    NEXT
    ? "Select model: "
 
@@ -120,7 +122,10 @@ STATIC FUNCTION IniRead( cFileName )
          s1 := Trim( Left(s,nPos-1) )
          s2 := Ltrim( Substr( s,nPos+1 ) )
          IF Left( s1, 5 ) == "model"
-            AAdd( aModels, s2 )
+            AAdd( aModels, { s2, "" } )
+         ELSEIF s1 == "c" .OR. s1 == "n" .OR. s1 == "temp" .OR. s1 == "repeat-penalty" ;
+            .OR. s1 == "top-k" .OR. s1 == "top-n" .OR. s1 == "n-keep"
+            ATail( aModels )[2] += s1 + '=' + s2 + Chr(1)
          ENDIF
       ENDIF
    NEXT

@@ -96,6 +96,9 @@ HB_FUNC( LLM_SET_PARAMS )
       } else if( !strcmp( s1, "n" ) ) {
          params.n_predict = std::stoi( s2 );
 
+      } else if( !strcmp( s1, "n-keep" ) ) {
+         params.n_keep = std::stoi( s2 );
+
       } else if( !strcmp( s1, "temp" ) ) {
          sparams.temp = std::stof( s2 );
          sparams.temp = std::max(sparams.temp, 0.0f);
