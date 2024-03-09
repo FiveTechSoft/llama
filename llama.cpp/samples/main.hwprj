@@ -1,0 +1,20 @@
+
+{win}c_compiler=msvc64
+{win}gtlib=gtwin
+{unix}gtlib=gttrm
+libspath=../../lib
+
+{win}libs=llama ucrt
+{unix}libs=llama
+outname=main
+
+{win}cflags=/TP /W3 /nologo /c -I.\common -I..\
+{unix}cflags= -std=c++11 -fPIC -O3 -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wmissing-declarations -Wmissing-noreturn -pthread  -march=native -mtune=native -Wno-array-bounds -Wno-format-truncation -Wextra-semi -I../ -I../common -D_XOPEN_SOURCE=600 -D_GNU_SOURCE -DNDEBUG -c
+{unix}def_cflags=-c -Wall
+
+{win}def_lflags= /NODEFAULTLIB:libucrt.lib /NODEFAULTLIB:msvcrt.lib /INCREMENTAL:NO /NOLOGO /SUBSYSTEM:CONSOLE /TLBID:1 /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DYNAMICBASE /NXCOMPAT /MACHINE:X64  /machine:x64
+{unix}def_lflags=-lstdc++ -shared-libgcc -std=c++11 -fPIC -O3 -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wmissing-declarations -Wmissing-noreturn -pthread  -march=native -mtune=native -Wno-array-bounds -Wno-format-truncation -Wextra-semi -D_XOPEN_SOURCE=600 -D_GNU_SOURCE -DNDEBUG
+
+main.cpp
+{win}../common/console.cpp
+{unix}../common/console.cpp -xc++

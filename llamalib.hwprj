@@ -1,0 +1,46 @@
+# Llama library build script
+
+makemode=on
+target=lib
+outpath=lib
+outname=llama
+objpath=obj
+
+guilib=
+
+{win}c_compiler=msvc64
+{win}cflags=/TP /W3 /nologo /EHsc /c -Illama.cpp\common -Illama.cpp -DLOG_DISABLE_LOGS=1
+
+{unix}cflags=-std=c++11 -fPIC -O3 -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wmissing-declarations -Wmissing-noreturn -pthread  -march=native -mtune=native -Wno-array-bounds -Wno-format-truncation -Wextra-semi -Illama.cpp -Illama.cpp/common -D_XOPEN_SOURCE=600 -D_GNU_SOURCE -DNDEBUG -DLOG_DISABLE_LOGS=1 -c
+{unix}def_cflags=-c -Wall
+
+srcpath=source
+
+{win}hllama.cpp
+{unix}hllama.cpp -xc++
+
+srcpath=llama.cpp
+
+{win}llama.cpp
+{win}ggml.c  /W3 /WX- /diagnostics:column /O2 /Ob2 /D _MBCS /D WIN32 /D _WINDOWS /D NDEBUG /D _CRT_SECURE_NO_WARNINGS /Gm- /MD /GS /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c11 /external:W3 /Gd /TC /errorReport:queue
+{win}ggml-alloc.c /W3 /WX- /diagnostics:column /O2 /Ob2 /D _MBCS /D WIN32 /D _WINDOWS /D NDEBUG /D _CRT_SECURE_NO_WARNINGS /Gm- /MD /GS /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c11 /external:W3 /Gd /TC /errorReport:queue
+{win}ggml-backend.c /W3 /WX- /diagnostics:column /O2 /Ob2 /D _MBCS /D WIN32 /D _WINDOWS /D NDEBUG /D _CRT_SECURE_NO_WARNINGS /Gm- /MD /GS /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c11 /external:W3 /Gd /TC /errorReport:queue
+{win}ggml-quants.c /W3 /WX- /diagnostics:column /O2 /Ob2 /D _MBCS /D WIN32 /D _WINDOWS /D NDEBUG /D _CRT_SECURE_NO_WARNINGS  /Gm- /MD /GS /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c11 /external:W3 /Gd /TC /errorReport:queue
+
+{unix}llama.cpp -xc++
+{unix}ggml.c
+{unix}ggml-alloc.c
+{unix}ggml-backend.c
+{unix}ggml-quants.c
+
+srcpath=llama.cpp/common
+
+{win}common.cpp
+{win}sampling.cpp
+{win}grammar-parser.cpp
+{win}build-info.cpp
+
+{unix}common.cpp -xc++
+{unix}sampling.cpp -xc++
+{unix}grammar-parser.cpp -xc++
+{unix}build-info.cpp -xc++
