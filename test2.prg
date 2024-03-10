@@ -35,6 +35,9 @@ Function Main()
       RETURN Nil
    ENDIF
 
+      IF llm_Create_Context() < 0
+         ? "Can't create context"
+      ENDIF
    DO WHILE .T.
 
       ? "> "
@@ -53,10 +56,10 @@ Function Main()
       ENDIF
 
       ?
-      IF llm_Create_Context() < 0
-         ? "Can't create context"
-         EXIT
-      ENDIF
+      //IF llm_Create_Context() < 0
+      //   ? "Can't create context"
+      //   EXIT
+      //ENDIF
       cQue := hb_StrToUtf8( cQue, "RU866" )
       llm_Ask( cQue )
       cAnswer := ""
@@ -69,8 +72,9 @@ Function Main()
             EXIT
          ENDIF
       ENDDO
-      llm_Close_Context()
+      //llm_Close_Context()
    ENDDO
+      llm_Close_Context()
 
    llm_Close_Model()
    llm_rediroff( 2, n2 )
@@ -90,7 +94,7 @@ STATIC FUNCTION SelectModel()
    ? "Select model: "
 
    nKey := Inkey(0)
-   ?? Chr( nKey )
+   ? Chr( nKey )
 
    IF ( i := nKey - 48 ) <= 0 .OR. i > Len( aModels )
       ? "Wrong choic"
