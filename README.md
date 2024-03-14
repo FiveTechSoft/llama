@@ -59,6 +59,24 @@ Of course, you need to use your paths.
 
 #### Linux
 ```bash
+#!/bin/bash
+# Set your Harbour path here
+export HRB_DIR=/home/guest/apps/harbour
+export CFLAGS="-c -Wall -std=c++11 -fPIC -O3 -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wmissing-declarations -Wmissing-noreturn -pthread  -march=native -mtune=native -Wno-array-bounds -Wno-format-truncation -Illama.cpp -Illama.cpp/common -D_XOPEN_SOURCE=600 -D_GNU_SOURCE -DNDEBUG -DLOG_DISABLE_LOGS=1 -c -I$HRB_DIR/include"
+export CXXFLAGS="-c -Wall -std=c++11 -fPIC -O3 -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wmissing-declarations -Wmissing-noreturn -pthread  -march=native -mtune=native -Wno-array-bounds -Wno-format-truncation -Illama.cpp -Illama.cpp/common -D_XOPEN_SOURCE=600 -D_GNU_SOURCE -DNDEBUG -DLOG_DISABLE_LOGS=1 -c -xc++ -I$HRB_DIR/include"
+
+gcc $CXXFLAGS -oobj/gcc/hllama.o source/hllama.cpp
+gcc $CXXFLAGS -oobj/gcc/llama.o llama.cpp/llama.cpp
+gcc $CFLAGS -oobj/gcc/ggml.o llama.cpp/ggml.c
+gcc $CFLAGS -oobj/gcc/ggml-alloc.o llama.cpp/ggml-alloc.c
+gcc $CFLAGS -oobj/gcc/ggml-backend.o llama.cpp/ggml-backend.c
+gcc $CFLAGS -oobj/gcc/ggml-quants.o llama.cpp/ggml-quants.c
+gcc $CXXFLAGS -oobj/gcc/common.o llama.cpp/common/common.cpp
+gcc $CXXFLAGS -oobj/gcc/sampling.o llama.cpp/common/sampling.cpp
+gcc $CXXFLAGS -oobj/gcc/grammar-parser.o llama.cpp/common/grammar-parser.cpp
+gcc $CXXFLAGS -oobj/gcc/build-info.o llama.cpp/common/build-info.cpp
+
+ar rc  lib/libllama.a  obj/gcc/hllama.o obj/gcc/llama.o obj/gcc/ggml.o obj/gcc/ggml-alloc.o obj/gcc/ggml-backend.o obj/gcc/ggml-quants.o obj/gcc/common.o obj/gcc/sampling.o obj/gcc/grammar-parser.o obj/gcc/build-info.o
 ```
 
 ## Compiling samples
@@ -84,4 +102,11 @@ link /NODEFAULTLIB:libucrt.lib /NODEFAULTLIB:msvcrt.lib /INCREMENTAL:NO /NOLOGO 
 
 #### Linux
 ```bash
+#!/bin/bash
+# Set your Harbour path here
+export HRB_DIR=/home/guest/apps/harbour
+
+$HRB_DIR/bin/harbour -n -q -i$HRB_DIR/include test1.prg
+gcc -c -Wall -I$HRB_DIR/include -otest1.o test1.c
+gcc  test1.o -otest1 -L$HRB_DIR/lib/linux/gcc -Llib -Wl,--start-group -lgttrm -lhbvm -lhbrtl -lgtcgi -lgttrm -lhbcpage -lhblang -lhbrdd -lhbmacro -lhbpp -lrddntx -lrddcdx -lrddfpt -lhbsix -lhbcommon -lhbct -lhbcplr -lhbpcre -lhbzlib -lllama -lpthread -lm -lz -lpcre -ldl -Wl,--end-group -fPIC -O3 -Wall -lstdc++ -shared-libgcc
 ```
