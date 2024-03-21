@@ -1,9 +1,10 @@
 # llama.prg
-Harbour bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
+Harbour bindings for llama.cpp
 
 1. [Quick review](#quick-review)
 2. [Compiling library](#compiling-library)
 3. [Compiling samples](#compiling-samples)
+3. [Links](#links)
 
 ## Quick review
 
@@ -13,7 +14,7 @@ Under Windows it demands 64-bit MSVC compiler, under Linux/Unix - the standard 6
 
 ## Compiling library
 
-A preferred method to build the llama library and samples is [HwBuilder](http://www.kresin.ru/en/hwbuilder.html) - my utility, which builds programs, written on Harbour. An appropriate project file, llamalib.hwprj, is provided.
+A preferred method to build the llama library and samples is HwBuilder - my utility, which builds programs, written on Harbour. An appropriate project file, llamalib.hwprj, is provided.
 Llamalib.hwprj and other hwprj files supposes, that there is a section for 64-bit MSVC compiler in your copy of hwbuild.ini, you need to tune it:
 ```
 [C_COMPILER_6]
@@ -110,3 +111,8 @@ $HRB_DIR/bin/harbour -n -q -i$HRB_DIR/include test1.prg
 gcc -c -Wall -I$HRB_DIR/include -otest1.o test1.c
 gcc  test1.o -otest1 -L$HRB_DIR/lib/linux/gcc -Llib -Wl,--start-group -lgttrm -lhbvm -lhbrtl -lgtcgi -lgttrm -lhbcpage -lhblang -lhbrdd -lhbmacro -lhbpp -lrddntx -lrddcdx -lrddfpt -lhbsix -lhbcommon -lhbct -lhbcplr -lhbpcre -lhbzlib -lllama -lpthread -lm -lz -lpcre -ldl -Wl,--end-group -fPIC -O3 -Wall -lstdc++ -shared-libgcc
 ```
+## Links
+
+[Project web page](http://www.kresin.ru/en/llama_prg.html)
+[llama.cpp](https://github.com/ggerganov/llama.cpp)
+[HwBuilder](http://www.kresin.ru/en/hwbuilder.html)
