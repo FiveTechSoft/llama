@@ -33,6 +33,14 @@
 static llama_model * model;
 static llama_context * ctx;
 static gpt_params params;
+
+static std::vector<llama_token> embd_inp;
+static std::vector<llama_token> embd;
+static struct llama_sampling_context * ctx_sampling = NULL;
+static int n_ctx;
+static int n_past;
+static int n_consumed;
+
 static llama_batch batch;
 static short int bBatchActive = 0;
 static int n_len;
@@ -144,9 +152,8 @@ HB_FUNC( LLM_OPEN_MODEL )
    hb_retni( 0 );
 }
 
-HB_FUNC( LLM_CREATE_CONTEXT )
+void llm_create_context( void )
 {
-
    // initialize the context
    llama_context_params ctx_params = llama_context_params_from_gpt_params( params ); // llama_context_default_params();
 
@@ -158,11 +165,37 @@ HB_FUNC( LLM_CREATE_CONTEXT )
 
    ctx = llama_new_context_with_model( model, ctx_params );
 
+}
+
+HB_FUNC( LLM_CREATE_CONTEXT )
+{
+
+   llm_create_context();
    if( ctx == NULL ) {
        hb_retni( -1 );
    } else
       hb_retni( 0 );
 
+}
+
+HB_FUNC( LLM_CREATE_CONTEXT_1 )
+{
+
+   llm_create_context();
+   if( ctx == NULL ) {
+       hb_retni( -1 );
+   } else {
+      hb_retni( 0 );
+      n_ctx = llama_n_ctx(ctx);
+      embd_inp = ::llama_tokenize( ctx, "", true, true );
+      if( params.n_keep < 0 || params.n_keep > (int) embd_inp.size() )
+         params.n_keep = (int)embd_inp.size();
+      else
+         params.n_keep += 1;
+      n_past = 0;
+      n_consumed = 0;
+      ctx_sampling = llama_sampling_init( params.sparams );
+   }
 }
 
 HB_FUNC( LLM_ASK )
@@ -259,6 +292,107 @@ HB_FUNC( LLM_GETNEXTTOKEN )
 
 }
 
+HB_FUNC( LLM_ASK_1 )
+{
+
+   const auto line_inp = ::llama_tokenize(ctx, hb_parc( 1 ), false, false);
+
+   embd_inp.insert(embd_inp.end(), line_inp.begin(), line_inp.end());
+
+   llama_sampling_reset(ctx_sampling);
+   embd.clear();
+
+   while ((int) embd_inp.size() > n_consumed) {
+       embd.push_back(embd_inp[n_consumed]);
+
+       // push the prompt in the sampling context in order to apply repetition penalties later
+       // for the prompt, we don't apply grammar rules
+       llama_sampling_accept(ctx_sampling, ctx, embd_inp[n_consumed], false);
+
+       ++n_consumed;
+       if ((int) embd.size() >= params.n_batch) {
+           break;
+       }
+   }
+
+}
+
+HB_FUNC( LLM_GETNEXTTOKEN_1 )
+{
+   int max_embd_size = n_ctx - 4;
+
+   if( embd.empty() ) {
+      hb_ret();
+      return;
+   }
+
+   // Ensure the input doesn't exceed the context size by truncating embd if necessary.
+   if ((int) embd.size() > max_embd_size) {
+       embd.resize(max_embd_size);
+   }
+
+   // infinite text generation via context shifting
+   // if we run out of context:
+   // - take the n_keep first tokens from the original prompt (via n_past)
+   // - take half of the last (n_ctx - n_keep) tokens and recompute the logits in batches
+   if (n_past + (int) embd.size() > n_ctx) {
+       if (params.n_predict == -2) {
+           LOG_TEE("\n\n%s: context full and n_predict == -%d => stopping\n", __func__, params.n_predict);
+           return;
+       }
+       const int n_left    = n_past - params.n_keep;
+       const int n_discard = n_left/2;
+
+       LOG("context full, swapping: n_past = %d, n_left = %d, n_ctx = %d, n_keep = %d, n_discard = %d\n",
+               n_past, n_left, n_ctx, params.n_keep, n_discard);
+
+       llama_kv_cache_seq_rm (ctx, 0, params.n_keep            , params.n_keep + n_discard);
+       llama_kv_cache_seq_add(ctx, 0, params.n_keep + n_discard, n_past, -n_discard);
+
+       n_past -= n_discard;
+
+       LOG("after swap: n_past = %d\n", n_past);
+       LOG("embd: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
+   }
+
+   for (int i = 0; i < (int) embd.size(); i += params.n_batch) {
+       int n_eval = (int) embd.size() - i;
+       if (n_eval > params.n_batch) {
+           n_eval = params.n_batch;
+       }
+
+       LOG("eval: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
+
+       if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval, n_past, 0))) {
+           LOG_TEE("%s : failed to eval\n", __func__);
+           return;
+       }
+
+       n_past += n_eval;
+
+       LOG("n_past = %d\n", n_past);
+       // Display total tokens alongside total time
+       if (params.n_print > 0 && n_past % params.n_print == 0) {
+           LOG_TEE("\n\033[31mTokens consumed so far = %d / %d \033[0m\n", n_past, n_ctx);
+       }
+   }
+
+   std::string sRes;
+   for (auto id : embd) {
+       sRes += llama_token_to_piece(ctx, id);
+   }
+
+   embd.clear();
+   const llama_token id = llama_sampling_sample(ctx_sampling, ctx, NULL);
+   llama_sampling_accept(ctx_sampling, ctx, id, true);
+   embd.push_back(id);
+
+   if( !embd.empty() && embd.back() == llama_token_eos(model) )
+      hb_ret();
+   else
+      hb_retc( sRes.c_str() );
+}
+
 HB_FUNC( LLM_CLOSE_CONTEXT )
 {
 
@@ -269,6 +403,14 @@ HB_FUNC( LLM_CLOSE_CONTEXT )
    if( ctx )
       llama_free( ctx );
    ctx = NULL;
+
+   if( ctx_sampling )
+   {
+      llama_sampling_free( ctx_sampling );
+      ctx_sampling = NULL;
+      embd.clear();
+      embd_inp.clear();
+   }
 
    hb_retni( 0 );
 }
