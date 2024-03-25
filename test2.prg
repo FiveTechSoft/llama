@@ -35,7 +35,7 @@ Function Main()
       RETURN Nil
    ENDIF
 
-   IF llm_Create_Context_1() < 0
+   IF llm_Create_Context() < 0
       ? "Can't create context"
    ENDIF
    DO WHILE .T.
@@ -57,9 +57,9 @@ Function Main()
 
       ?
       cQue := hb_StrToUtf8( cQue, "RU866" )
-      llm_Ask_1( cQue )
+      llm_Ask( cQue )
       cAnswer := ""
-      DO WHILE ( cAns := llm_GetNextToken_1() ) != Nil
+      DO WHILE ( cAns := llm_GetNextToken() ) != Nil
          //writelog( cAns )
          cAns := hb_Utf8ToStr( cAns, "RU866" )
          cAnswer += cAns

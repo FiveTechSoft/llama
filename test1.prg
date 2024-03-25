@@ -58,9 +58,9 @@ Function Main()
          EXIT
       ENDIF
       cQue := hb_StrToUtf8( cQue, "RU866" )
-      llm_Ask( cQue )
+      llm_Ask_0( cQue )
       cAnswer := ""
-      DO WHILE ( cAns := llm_GetNextToken() ) != Nil
+      DO WHILE ( cAns := llm_GetNextToken_0() ) != Nil
          //writelog( cAns )
          cAns := hb_Utf8ToStr( cAns, "RU866" )
          cAnswer += cAns

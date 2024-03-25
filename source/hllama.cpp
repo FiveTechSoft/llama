@@ -37,7 +37,6 @@ static gpt_params params;
 static std::vector<llama_token> embd_inp;
 static std::vector<llama_token> embd;
 static struct llama_sampling_context * ctx_sampling = NULL;
-static int n_ctx;
 static int n_past;
 static int n_consumed;
 
@@ -167,7 +166,7 @@ void llm_create_context( void )
 
 }
 
-HB_FUNC( LLM_CREATE_CONTEXT )
+HB_FUNC( LLM_CREATE_CONTEXT_0 )
 {
 
    llm_create_context();
@@ -178,7 +177,7 @@ HB_FUNC( LLM_CREATE_CONTEXT )
 
 }
 
-HB_FUNC( LLM_CREATE_CONTEXT_1 )
+HB_FUNC( LLM_CREATE_CONTEXT )
 {
 
    llm_create_context();
@@ -186,19 +185,15 @@ HB_FUNC( LLM_CREATE_CONTEXT_1 )
        hb_retni( -1 );
    } else {
       hb_retni( 0 );
-      n_ctx = llama_n_ctx(ctx);
       embd_inp = ::llama_tokenize( ctx, "", true, true );
-      if( params.n_keep < 0 || params.n_keep > (int) embd_inp.size() )
-         params.n_keep = (int)embd_inp.size();
-      else
-         params.n_keep += 1;
+      ctx_sampling = llama_sampling_init( params.sparams );
+      params.n_keep = 1;
       n_past = 0;
       n_consumed = 0;
-      ctx_sampling = llama_sampling_init( params.sparams );
    }
 }
 
-HB_FUNC( LLM_ASK )
+HB_FUNC( LLM_ASK_0 )
 {
 
    // tokenize the prompt
@@ -206,7 +201,7 @@ HB_FUNC( LLM_ASK )
    std::vector<llama_token> tokens_list;
    tokens_list = ::llama_tokenize( ctx, hb_parc( 1 ), true );
 
-   const int n_ctx    = llama_n_ctx(ctx);
+   const int n_ctx = llama_n_ctx(ctx);
    const int n_kv_req = (int) ( tokens_list.size() + (n_len - tokens_list.size()) );
 
    // make sure the KV cache is big enough to hold all the prompt and generated tokens
@@ -218,12 +213,9 @@ HB_FUNC( LLM_ASK )
    }
 
    // print the prompt token-by-token
-   //fprintf(stderr, "\n");
    for (auto id : tokens_list) {
-       //fprintf(stderr, "%s", llama_token_to_piece(ctx, id).c_str());
        llama_token_to_piece(ctx, id).c_str();
    }
-   //fflush(stderr);
 
    // create a llama_batch with size 512
    // we use this object to submit token data for decoding
@@ -251,7 +243,7 @@ HB_FUNC( LLM_ASK )
    hb_retni( 0 );
 }
 
-HB_FUNC( LLM_GETNEXTTOKEN )
+HB_FUNC( LLM_GETNEXTTOKEN_0 )
 {
 
    if( n_cur <= n_len ) {
@@ -292,34 +284,29 @@ HB_FUNC( LLM_GETNEXTTOKEN )
 
 }
 
-HB_FUNC( LLM_ASK_1 )
+HB_FUNC( LLM_ASK )
 {
-
    const auto line_inp = ::llama_tokenize(ctx, hb_parc( 1 ), false, false);
 
-   embd_inp.insert(embd_inp.end(), line_inp.begin(), line_inp.end());
+   embd_inp.insert( embd_inp.end(), line_inp.begin(), line_inp.end() );
 
    llama_sampling_reset(ctx_sampling);
    embd.clear();
 
-   while ((int) embd_inp.size() > n_consumed) {
-       embd.push_back(embd_inp[n_consumed]);
-
-       // push the prompt in the sampling context in order to apply repetition penalties later
-       // for the prompt, we don't apply grammar rules
-       llama_sampling_accept(ctx_sampling, ctx, embd_inp[n_consumed], false);
-
-       ++n_consumed;
-       if ((int) embd.size() >= params.n_batch) {
-           break;
-       }
+   while( (int) embd_inp.size() > n_consumed ) {
+      embd.push_back(embd_inp[n_consumed]);
+      // push the prompt in the sampling context in order to apply repetition penalties later
+      // for the prompt, we don't apply grammar rules
+      llama_sampling_accept(ctx_sampling, ctx, embd_inp[n_consumed], false);
+      ++n_consumed;
+      if( (int) embd.size() >= params.n_batch )
+         break;
    }
-
 }
 
-HB_FUNC( LLM_GETNEXTTOKEN_1 )
+HB_FUNC( LLM_GETNEXTTOKEN )
 {
-   int max_embd_size = n_ctx - 4;
+   const int n_ctx = llama_n_ctx(ctx);
 
    if( embd.empty() ) {
       hb_ret();
@@ -327,8 +314,8 @@ HB_FUNC( LLM_GETNEXTTOKEN_1 )
    }
 
    // Ensure the input doesn't exceed the context size by truncating embd if necessary.
-   if ((int) embd.size() > max_embd_size) {
-       embd.resize(max_embd_size);
+   if( (int) embd.size() > n_ctx - 4 ) {
+       embd.resize( n_ctx - 4 );
    }
 
    // infinite text generation via context shifting
@@ -337,22 +324,17 @@ HB_FUNC( LLM_GETNEXTTOKEN_1 )
    // - take half of the last (n_ctx - n_keep) tokens and recompute the logits in batches
    if (n_past + (int) embd.size() > n_ctx) {
        if (params.n_predict == -2) {
-           LOG_TEE("\n\n%s: context full and n_predict == -%d => stopping\n", __func__, params.n_predict);
+           // context full and n_predict == 2 => stopping
            return;
        }
-       const int n_left    = n_past - params.n_keep;
-       const int n_discard = n_left/2;
 
-       LOG("context full, swapping: n_past = %d, n_left = %d, n_ctx = %d, n_keep = %d, n_discard = %d\n",
-               n_past, n_left, n_ctx, params.n_keep, n_discard);
+       const int n_discard = (n_past - params.n_keep)/2;
 
-       llama_kv_cache_seq_rm (ctx, 0, params.n_keep            , params.n_keep + n_discard);
+       // context full, swapping
+       llama_kv_cache_seq_rm (ctx, 0, params.n_keep, params.n_keep + n_discard);
        llama_kv_cache_seq_add(ctx, 0, params.n_keep + n_discard, n_past, -n_discard);
 
        n_past -= n_discard;
-
-       LOG("after swap: n_past = %d\n", n_past);
-       LOG("embd: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
    }
 
    for (int i = 0; i < (int) embd.size(); i += params.n_batch) {
@@ -361,20 +343,20 @@ HB_FUNC( LLM_GETNEXTTOKEN_1 )
            n_eval = params.n_batch;
        }
 
-       LOG("eval: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
+       //LOG("eval: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
 
        if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval, n_past, 0))) {
-           LOG_TEE("%s : failed to eval\n", __func__);
+           //LOG_TEE("%s : failed to eval\n", __func__);
            return;
        }
 
        n_past += n_eval;
 
-       LOG("n_past = %d\n", n_past);
+       // LOG("n_past = %d\n", n_past);
        // Display total tokens alongside total time
-       if (params.n_print > 0 && n_past % params.n_print == 0) {
-           LOG_TEE("\n\033[31mTokens consumed so far = %d / %d \033[0m\n", n_past, n_ctx);
-       }
+       // if (params.n_print > 0 && n_past % params.n_print == 0) {
+       //    LOG_TEE("\n\033[31mTokens consumed so far = %d / %d \033[0m\n", n_past, n_ctx);
+       //}
    }
 
    std::string sRes;
