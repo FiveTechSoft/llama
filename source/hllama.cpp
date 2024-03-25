@@ -39,6 +39,7 @@ static std::vector<llama_token> embd;
 static struct llama_sampling_context * ctx_sampling = NULL;
 static int n_past;
 static int n_consumed;
+static int n_remain;
 
 static llama_batch batch;
 static short int bBatchActive = 0;
@@ -291,8 +292,9 @@ HB_FUNC( LLM_ASK )
    embd_inp.insert( embd_inp.end(), line_inp.begin(), line_inp.end() );
 
    llama_sampling_reset(ctx_sampling);
-   embd.clear();
+   n_remain = params.n_predict;
 
+   embd.clear();
    while( (int) embd_inp.size() > n_consumed ) {
       embd.push_back(embd_inp[n_consumed]);
       // push the prompt in the sampling context in order to apply repetition penalties later
@@ -324,7 +326,7 @@ HB_FUNC( LLM_GETNEXTTOKEN )
    // - take half of the last (n_ctx - n_keep) tokens and recompute the logits in batches
    if (n_past + (int) embd.size() > n_ctx) {
        if (params.n_predict == -2) {
-           // context full and n_predict == 2 => stopping
+           // context full and n_predict == -2 => stopping
            return;
        }
 
@@ -362,6 +364,7 @@ HB_FUNC( LLM_GETNEXTTOKEN )
    std::string sRes;
    for (auto id : embd) {
        sRes += llama_token_to_piece(ctx, id);
+       n_remain --;
    }
 
    embd.clear();
@@ -369,7 +372,8 @@ HB_FUNC( LLM_GETNEXTTOKEN )
    llama_sampling_accept(ctx_sampling, ctx, id, true);
    embd.push_back(id);
 
-   if( !embd.empty() && embd.back() == llama_token_eos(model) )
+   if( ( !embd.empty() && embd.back() == llama_token_eos(model) ) ||
+      ( params.n_predict > 0 && n_remain <= 0 ) )
       hb_ret();
    else
       hb_retc( sRes.c_str() );
