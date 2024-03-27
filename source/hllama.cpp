@@ -215,7 +215,7 @@ HB_FUNC( LLM_ASK_0 )
 
    // print the prompt token-by-token
    for (auto id : tokens_list) {
-       llama_token_to_piece(ctx, id).c_str();
+       ( void ) llama_token_to_piece(ctx, id).c_str();
    }
 
    // create a llama_batch with size 512
