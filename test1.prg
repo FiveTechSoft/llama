@@ -1,8 +1,4 @@
-
 #include "inkey.ch"
-
-REQUEST HB_CODEPAGE_RU1251, HB_CODEPAGE_RU866
-REQUEST HB_CODEPAGE_UTF8
 
 STATIC aModels := {}
 STATIC aHis := {}, nHisCurr := 0
@@ -11,8 +7,6 @@ Function Main()
 
    LOCAL cQue, cAns, cAnswer
    LOCAL i, nKey, n2
-
-   hb_cdpSelect( "RU866" )
 
    IniRead( "models.ini" )
    IF Empty( aModels )
@@ -57,17 +51,13 @@ Function Main()
          ? "Can't create context"
          EXIT
       ENDIF
-      cQue := hb_StrToUtf8( cQue, "RU866" )
       llm_Ask_0( cQue )
       cAnswer := ""
       DO WHILE ( cAns := llm_GetNextToken_0() ) != Nil
          //writelog( cAns )
-         cAns := hb_Utf8ToStr( cAns, "RU866" )
+         // cAns := hb_Utf8ToStr( cAns, "RU866" )
          cAnswer += cAns
          ?? cAns
-         IF Inkey() == 27
-            EXIT
-         ENDIF
       ENDDO
       llm_Close_Context()
    ENDDO
@@ -124,7 +114,7 @@ STATIC FUNCTION IniRead( cFileName )
          IF Left( s1, 5 ) == "model"
             AAdd( aModels, { s2, "" } )
          ELSEIF s1 == "c" .OR. s1 == "n" .OR. s1 == "temp" .OR. s1 == "repeat-penalty" ;
-            .OR. s1 == "top-k" .OR. s1 == "top-n" .OR. s1 == "n-keep"
+            .OR. s1 == "top-k" .OR. s1 == "top-n" .OR. s1 == "n-keep" .or. s1 == "t"
             ATail( aModels )[2] += s1 + '=' + s2 + Chr(1)
          ENDIF
       ENDIF

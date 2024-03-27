@@ -157,8 +157,9 @@ void llm_create_context( void )
    // initialize the context
    llama_context_params ctx_params = llama_context_params_from_gpt_params( params ); // llama_context_default_params();
 
-   ctx_params.seed  = 1234;
-   //ctx_params.n_ctx = 2048;
+   ctx_params.seed  = 0xFFFFFFFF; // 1234;
+   ctx_params.n_ctx = 512; // 2048;
+   params.n_threads = 16;
 
    ctx_params.n_threads = params.n_threads;
    ctx_params.n_threads_batch = params.n_threads_batch == -1 ? params.n_threads : params.n_threads_batch;
@@ -189,6 +190,7 @@ HB_FUNC( LLM_CREATE_CONTEXT )
       embd_inp = ::llama_tokenize( ctx, "", true, true );
       ctx_sampling = llama_sampling_init( params.sparams );
       params.n_keep = 1;
+      params.n_threads = 8;
       n_past = 0;
       n_consumed = 0;
    }
